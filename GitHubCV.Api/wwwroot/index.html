@@ -1,0 +1,211 @@
+<!doctype html>
+<html class="dark">
+<head>
+ <meta charset="utf-8" />
+ <meta name="viewport" content="width=device-width,initial-scale=1" />
+ <title>GitHub Portfolio</title>
+ <script src="https://cdn.tailwindcss.com"></script>
+ <style>
+ /* עיצוב משופר עם קריאות טובה יותר */
+ :root { 
+   --bg-start: #0a0e1a; 
+   --bg-end: #151b2e; 
+   --card-bg: #1a2332;
+   --card-border: #2d3748;
+   --text-primary: #f7fafc;
+   --text-secondary: #cbd5e0;
+   --text-muted: #a0aec0;
+ }
+ 
+ .dark body { 
+   background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%); 
+   color: var(--text-primary);
+   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+ }
+ 
+ .card {
+   background: var(--card-bg);
+   border: 1px solid var(--card-border);
+   transition: transform 0.2s ease, box-shadow 0.2s ease;
+ }
+ 
+ .card:hover {
+   transform: translateY(-4px);
+   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+ }
+ 
+ .hebrew-text {
+   direction: rtl;
+   font-size: 0.95rem;
+ }
+ </style>
+</head>
+<body class="min-h-screen antialiased">
+ <header class="py-8 bg-gradient-to-b from-slate-900/50 to-transparent">
+ <div class="max-w-6xl mx-auto px-4">
+ <h1 class="text-5xl font-bold mb-3 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">GitHub Portfolio</h1>
+ <p class="text-base hebrew-text mb-8" style="color: var(--text-secondary);">מציג את הפרויקטים שלך ב-GitHub</p>
+
+ <div class="flex flex-col sm:flex-row gap-3">
+ <input id="repoName" type="search" placeholder="Search repository name..."
+ class="flex-1 px-4 py-3 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+ <input id="userName" type="search" placeholder="GitHub username (optional)"
+ class="w-full sm:w-1/3 px-4 py-3 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+ <div class="flex gap-2">
+ <button id="searchBtn" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-medium transition-colors">Search</button>
+ <button id="reloadBtn" class="px-4 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg font-medium transition-colors">Reload</button>
+ </div>
+ </div>
+ </div>
+ </header>
+
+ <main class="max-w-6xl mx-auto px-4 pb-12">
+ <div id="status" class="mb-6 text-base font-medium" style="color: var(--text-secondary);"></div>
+
+ <section id="projectsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+ <!-- cards will be injected here -->
+ </section>
+
+ <div id="emptyState" class="mt-10 text-center hidden" style="color: var(--text-muted);">
+ <p class="text-lg">No projects to display.</p>
+ </div>
+ </main>
+
+ <template id="cardTemplate">
+ <article class="card p-5 rounded-xl shadow-lg">
+ <header class="mb-3">
+ <a class="text-xl font-bold hover:text-indigo-400 transition-colors" target="_blank" rel="noopener noreferrer" style="color: var(--text-primary);"></a>
+ <p class="text-sm mt-2 leading-relaxed" style="color: var(--text-muted);"></p>
+ </header>
+ <div class="flex items-center gap-4 text-sm mb-4" style="color: var(--text-secondary);">
+ <span class="inline-flex items-center gap-1.5">
+   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-yellow-400" viewBox="0 0 24 24" fill="currentColor">
+     <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+   </svg>
+   <span class="stars font-medium"></span>
+ </span>
+ <span class="inline-flex items-center gap-1.5">
+ <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-400" viewBox="0 0 24 24" fill="currentColor">
+     <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h10v2H7zm0 4h7v2H7z"/>
+   </svg>
+   <span class="prs font-medium"></span> <span class="text-xs">PRs</span>
+ </span>
+ </div>
+ <div class="text-xs mb-3" style="color: var(--text-muted);">
+   <span class="last-commit"></span>
+ </div>
+ <div class="flex flex-wrap gap-2 languages"></div>
+ </article>
+ </template>
+
+ <script>
+ const apiBase = '/api/Portfolio';
+ const container = document.getElementById('projectsContainer');
+ const emptyState = document.getElementById('emptyState');
+ const tmpl = document.getElementById('cardTemplate');
+ const status = document.getElementById('status');
+
+ function setStatus(text) { status.textContent = text || ''; }
+
+ async function fetchPortfolio() {
+ setStatus('⏳ Loading portfolio...');
+ try {
+ const res = await fetch(apiBase);
+ if (!res.ok) throw new Error('Network error ' + res.status);
+ const data = await res.json();
+ renderProjects(data);
+ setStatus('');
+ } catch (err) {
+ console.error(err);
+ container.innerHTML = '<div class="col-span-full text-red-400 text-center p-8 text-lg">❌ Failed to load projects.</div>';
+ setStatus('Failed to load portfolio');
+ }
+ }
+
+ async function searchProjects() {
+ const repoName = document.getElementById('repoName').value.trim();
+ const user = document.getElementById('userName').value.trim();
+ const qs = new URLSearchParams();
+ if (repoName) qs.append('repoName', repoName);
+ if (user) qs.append('user', user);
+ setStatus('🔍 Searching...');
+ try {
+ const res = await fetch(apiBase + '/search?' + qs.toString());
+ if (!res.ok) throw new Error('Network error ' + res.status);
+ const data = await res.json();
+ renderProjects(data);
+ setStatus('');
+ } catch (err) {
+ console.error(err);
+ container.innerHTML = '<div class="col-span-full text-red-400 text-center p-8 text-lg">❌ Search failed.</div>';
+ setStatus('Search failed');
+ }
+ }
+
+ function formatRelativeDate(iso) {
+ if (!iso) return '';
+ const d = new Date(iso);
+ const now = new Date();
+ const diffMs = now - d;
+ const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+ 
+ if (diffDays === 0) return '📅 Today';
+ if (diffDays === 1) return '📅 Yesterday';
+ if (diffDays < 7) return `📅 ${diffDays} days ago`;
+ if (diffDays < 30) return `📅 ${Math.floor(diffDays / 7)} weeks ago`;
+ if (diffDays < 365) return `📅 ${Math.floor(diffDays / 30)} months ago`;
+ return `📅 ${d.toLocaleDateString()}`;
+ }
+
+ function renderProjects(items) {
+ container.innerHTML = '';
+ if (!items || items.length === 0) {
+ emptyState.classList.remove('hidden');
+ return;
+ } else {
+ emptyState.classList.add('hidden');
+ }
+
+ for (const it of items) {
+ const node = tmpl.content.cloneNode(true);
+ const a = node.querySelector('a');
+ a.textContent = it.name || 'Unnamed';
+ a.href = it.url || '#';
+
+ const desc = node.querySelector('p');
+ desc.textContent = it.description || 'No description available';
+
+ node.querySelector('.stars').textContent = it.stars ?? 0;
+ node.querySelector('.prs').textContent = it.pullRequestsCount ?? 0;
+ node.querySelector('.last-commit').textContent = it.lastCommitDate ? formatRelativeDate(it.lastCommitDate) : '📅 No commits';
+
+ const langWrap = node.querySelector('.languages');
+ if (it.languages && typeof it.languages === 'object') {
+ const keys = Object.keys(it.languages);
+ for (const k of keys) {
+ const span = document.createElement('span');
+ span.textContent = k;
+ span.className = 'text-xs px-3 py-1 rounded-full bg-gradient-to-r from-slate-700 to-slate-600 text-gray-100 font-medium shadow-sm';
+ langWrap.appendChild(span);
+ }
+ }
+
+ container.appendChild(node);
+ }
+ }
+
+ document.getElementById('searchBtn').addEventListener('click', searchProjects);
+ document.getElementById('reloadBtn').addEventListener('click', () => {
+ document.getElementById('repoName').value = '';
+ document.getElementById('userName').value = '';
+ fetchPortfolio();
+ });
+
+ document.getElementById('repoName').addEventListener('keyup', (e) => { if (e.key === 'Enter') searchProjects(); });
+ document.getElementById('userName').addEventListener('keyup', (e) => { if (e.key === 'Enter') searchProjects(); });
+
+ // initial load
+ fetchPortfolio();
+ </script>
+</body>
+</html>
